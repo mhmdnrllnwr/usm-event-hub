@@ -1,0 +1,35 @@
+# FILE FUNCTION: Orchestrates multiple containers (API + Database).
+# WHAT YOU CAN DO: 
+# - Change the ports (e.g., change 8000 to 5000).
+# - Add new services (like a Frontend or a different DB).
+# WHEN TO CHANGE: When you want to add more "pieces" to your system.
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: event_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    build: ./api
+    container_name: event_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+  
+  bot:
+    build: ./bot
+    container_name: event_bot
+    env_file:
+      - .env
+    depends_on:
+      - api # Ensures the Brain is ready before the Bot starts listening
+
+volumes:
+  mongo_data:
