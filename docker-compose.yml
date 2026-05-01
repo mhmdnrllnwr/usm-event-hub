@@ -22,6 +22,10 @@ services:
       - .env
     depends_on:
       - mongodb
+    volumes:
+      - ./api/static:/app/static # Mount local static folder to container
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN} # API needs this to download files
   
   bot:
     build: ./bot

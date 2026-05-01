@@ -1,4 +1,6 @@
 import unicodedata
+import os
+from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -6,8 +8,16 @@ from models import EventCreate
 from database import add_event
 from engine.regex_handler import extract_links, extract_dates, check_mycsd, extract_times, extract_fee
 from engine.nlp_handler import extract_entities
+from utils.image_handler import download_telegram_image
 
 app = FastAPI(title="USM Event Hub API")
+
+# Create the directory if it doesn't exist
+UPLOAD_DIR = "static/posters"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Mount the static directory
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Model for incoming data from the Telegram Bot
 class RawTelegramMessage(BaseModel):
@@ -63,10 +73,18 @@ async def process_raw_message(data: RawTelegramMessage):
     start_time = times[0] if len(times) > 0 else None
     end_time = times[1] if len(times) > 1 else None
 
+    # NEW: Download the image if it exists
+    local_image_path = None
+    if data.image_url: # This is currently holding the file_id
+        local_image_path = await download_telegram_image(
+            data.image_url, 
+            os.getenv("BOT_TOKEN")
+        )
+
     # 5. Build Final Event Object
     event_data = EventCreate(
         title=nlp_results["title"],
-        image_url=data.image_url, 
+        image_url=local_image_path, 
         start_date=start_date,
         end_date=end_date,
         start_time=start_time,
