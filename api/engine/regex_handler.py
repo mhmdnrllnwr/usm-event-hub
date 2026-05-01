@@ -6,13 +6,13 @@ def extract_links(text):
     return [link.rstrip('.,!?)') for link in links]
 
 def extract_dates(text):
-    # Matches DD/MM/YYYY OR DDth Month YYYY (e.g., 9th March 2025)
-    date_pattern = r'(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{2,4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
+    # Added (\d{1,2}(?:st|nd|rd|th)?) to catch "17th" or "2nd"
+    date_pattern = r'(\d{1,2}(?:st|nd|rd|th|(?:\-\d{1,2}))?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{2,4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
     return re.findall(date_pattern, text, re.IGNORECASE)
 
 def extract_times(text):
-    # Grabs all times like 8:00 PM or 9:30 PM
-    time_pattern = r'\d{1,2}(?::\d{2})?\s?(?:AM|PM|am|pm)'
+    # Improved to handle PM/AM stuck to the numbers (e.g., 8:00PM)
+    time_pattern = r'\d{1,2}(?::\d{2})?\s?(?:[AaPp]\.?[Mm]\.?)'
     return re.findall(time_pattern, text, re.IGNORECASE)
 
 def extract_fee(text):

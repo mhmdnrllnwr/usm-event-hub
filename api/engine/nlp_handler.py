@@ -14,34 +14,38 @@ def normalize_and_clean(text):
     return text
 
 def extract_entities(raw_text):
-    # 1. Prepare the text
-    clean_text = normalize_and_clean(raw_text)
+# 1. Normalize (Bold -> Normal)
+    text = normalize_and_clean(raw_text)
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
     
-    entities = {
-        "title": "Untitled Event",
-        "venue": "Online"
-    }
+    entities = {"title": "Untitled Event", "venue": "Online"}
 
-    # 2. THE SHOUT HUNTER: Find the longest ALL CAPS phrase
-    # This looks for sequences of words that are ALL CAPS and at least 3 words long
-    caps_patterns = re.findall(r'\b[A-Z\s]{10,}\b', clean_text)
-    if caps_patterns:
-        # Pick the longest one found, as it's usually the main title
-        best_match = max(caps_patterns, key=len).strip()
-        # Clean up any double spaces caused by emoji removal
-        entities["title"] = " ".join(best_match.split())
+    # 2. STRATEGY: Prioritize the first meaningful line
+    # We skip lines that are just greetings or too short
+    greetings = ["greetings", "hello", "hi", "assalam", "selamat"]
+    
+    for line in lines[:3]: # Check only the top 3 lines
+        lower_line = line.lower()
+        # Skip if it's a greeting
+        if any(greet in lower_line for greet in greetings):
+            continue
+        # Skip if it's just an emoji or single word
+        if len(line.split()) < 2:
+            continue
+        
+        entities["title"] = line
+        break
 
-    # 3. VENUE Extraction (Explicit search)
-    for line in clean_text.split('\n'):
-        l_lower = line.lower()
-        if any(key in l_lower for key in ["platform:", "venue:", "location:"]):
-            entities["venue"] = line.split(":", 1)[1].strip()
-            break
+    # 3. FALLBACK: Shout Hunter (if the first line doesn't look like a title)
+    if entities["title"] == "Untitled Event":
+        caps_patterns = re.findall(r'\b[A-Z\s]{10,}\b', text)
+        if caps_patterns:
+            entities["title"] = max(caps_patterns, key=len).strip()
             
     # 4. FALLBACK: If no 'Shout' found, use the old keyword logic
     if entities["title"] == "Untitled Event":
         keywords = ["workshop", "talk", "seminar", "competition", "program"]
-        for line in clean_text.split('\n'):
+        for line in text.split('\n'):
             if any(k in line.lower() for k in keywords):
                 entities["title"] = line.strip()[:100]
                 break

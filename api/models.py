@@ -11,6 +11,7 @@ from typing import Optional
 
 class EventCreate(BaseModel):
     title: str
+    image_url: Optional[str] = None
     start_date: str
     end_date: Optional[str] = None
     start_time: Optional[str] = None

@@ -4,63 +4,78 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-# Setup logging to see what's happening in Docker logs
+# Setup logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Configuration
 TOKEN = os.getenv("BOT_TOKEN")
-# Note: We use 'api' as the hostname because they are in the same Docker network
 API_URL = "http://api:8000/events/process" 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
+    raw_text = ""
+    file_id = None
+
+    # 1. Capture content
+    if update.message.photo:
+        file_id = update.message.photo[-1].file_id
+        raw_text = update.message.caption or ""
+    elif update.message.text:
+        raw_text = update.message.text
+
+    if not raw_text:
         return
 
-    raw_text = update.message.text
-    logging.info(f"📥 Received: {raw_text[:30]}...")
-
-    # Show a "typing" status in Telegram so the user knows the bot is thinking
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        response = requests.post(API_URL, json={"text": raw_text})
+        # 2. Send to API
+        payload = {"text": raw_text, "image_url": file_id}
+        response = requests.post(API_URL, json=payload)
         
         if response.status_code == 200:
-            # Parse the response from your FastAPI
             data = response.json()
-            extracted = data.get("extracted_data", {})
-            title = extracted.get("title", "Unknown Event")
-            event_id = data.get("id", "N/A")
-
-            logging.info(f"✅ Success: {title}")
+            # This is the event object returned by your FastAPI
+            ext = data.get("extracted_data", {})
             
-            # Send success reply
-            await update.message.reply_text(
-                f"✅ **Event Captured!**\n\n"
-                f"📍 **Title:** {title}\n"
-                f"📅 **Date:** {extracted.get('start_date')}\n"
-                f"💰 **Fee:** {extracted.get('fee')}\n\n"
-                f"Stored in Vault with ID: `{event_id}`",
-                parse_mode="Markdown"
+            # Format the time range nicely
+            time_str = f"{ext.get('start_time', 'TBD')} - {ext.get('end_time', 'TBD')}"
+            
+            # 3. Construct the "Event Card"
+            reply_markup = (
+                f"✅ **EVENT CAPTURED**\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"📝 **Title:** {ext.get('title')}\n"
+                f"📅 **Start Date:** {ext.get('start_date')}\n"
+                f"📅 **End Date:** {ext.get('end_date')}\n"
+                f"🕒 **Time:** {time_str}\n"
+                f"💰 **Fee:** {ext.get('fee')}\n"
+                f"📍 **Venue:** {ext.get('venue')}\n"
+                f"🔗 **Link:** {ext.get('registration_link')}\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 `ID: {data.get('id')}`"
             )
+
+            # 4. Reply with Photo if available, otherwise Text
+            if file_id:
+                await update.message.reply_photo(
+                    photo=file_id,
+                    caption=reply_markup,
+                    parse_mode="Markdown"
+                )
+            else:
+                await update.message.reply_text(
+                    reply_markup,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True # Keeps the chat clean
+                )
         else:
-            logging.error(f"❌ API Error: {response.text}")
-            await update.message.reply_text("⚠️ The Brain encountered an error processing this message.")
-
+            await update.message.reply_text("❌ Brain Error: Failed to process event.")
+            
     except Exception as e:
-        logging.error(f"❌ Connection Error: {e}")
-        await update.message.reply_text("🔌 Connection Error: I couldn't reach the Event Hub Brain.")
-        
-if __name__ == '__main__':
-    if not TOKEN:
-        print("Error: BOT_TOKEN not found in environment variables!")
-        exit(1)
+        logging.error(f"Error: {e}")
+        await update.message.reply_text("🔌 Connection Error: API is offline.")
 
+if __name__ == '__main__':
     application = ApplicationBuilder().token(TOKEN).build()
-    
-    # This handler tells the bot to listen to all TEXT messages
-    message_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message)
-    application.add_handler(message_handler)
-    
-    logging.info("🤖 Bot is now listening for USM events...")
+    event_handler = MessageHandler((filters.TEXT | filters.PHOTO) & (~filters.COMMAND), handle_message)
+    application.add_handler(event_handler)
     application.run_polling()
