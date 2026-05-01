@@ -68,14 +68,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     disable_web_page_preview=True # Keeps the chat clean
                 )
         else:
-            await update.message.reply_text("❌ Brain Error: Failed to process event.")
-            
+            if response.status_code == 409:
+                await update.message.reply_text("⚠️ **Event already exists!**", parse_mode="Markdown")
+            else:
+                await update.message.reply_text("❌ **Failed to process event.**")
+                
     except Exception as e:
         logging.error(f"Error: {e}")
-        await update.message.reply_text("🔌 Connection Error: API is offline.")
+        await update.message.reply_text("🔌 Connection Error: API is offline or an error occurred.")
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(TOKEN).build()
+    
+    # Listen to all messages containing text or photos
     event_handler = MessageHandler((filters.TEXT | filters.PHOTO) & (~filters.COMMAND), handle_message)
     application.add_handler(event_handler)
+    
+    logging.info("Bot is running...")
     application.run_polling()

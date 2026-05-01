@@ -16,6 +16,10 @@ client = AsyncIOMotorClient(MONGO_DETAILS)
 database = client.event_hub
 event_collection = database.get_collection("events_collection")
 
+async def check_event_exists(title: str, start_date: str) -> bool:
+    event = await event_collection.find_one({"title": title, "start_date": start_date})
+    return bool(event)
+
 async def add_event(event_data: EventCreate):
     event_dict = event_data.model_dump() # Using model_dump() for Pydantic v2
     event_dict["registration_link"] = str(event_dict["registration_link"])

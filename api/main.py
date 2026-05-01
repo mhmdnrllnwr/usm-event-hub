@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from models import EventCreate
-from database import add_event
+from database import add_event, check_event_exists
 from engine.regex_handler import extract_links, extract_dates, check_mycsd, extract_times, extract_fee
 from engine.nlp_handler import extract_entities
 from utils.image_handler import download_telegram_image
@@ -95,6 +95,11 @@ async def process_raw_message(data: RawTelegramMessage):
         has_mycsd=check_mycsd(raw_text),
         raw_text=raw_text
     )
+
+    # 5.5 Check for duplicates
+    is_duplicate = await check_event_exists(event_data.title, event_data.start_date)
+    if is_duplicate:
+        raise HTTPException(status_code=409, detail="Event already exists")
 
     # 6. Save to MongoDB
     event_id = await add_event(event_data)
