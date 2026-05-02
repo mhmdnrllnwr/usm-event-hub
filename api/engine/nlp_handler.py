@@ -2,6 +2,7 @@ import spacy
 import unicodedata
 import re
 from .config import NEGATIVE_TITLE_KEYWORDS, VENUE_KEYWORDS
+from .config import VENUE_LABELS,VENUE_KEYWORDS, DATE_LABELS, TIME_LABELS
 
 # Load spaCy model
 try:
@@ -60,19 +61,25 @@ def identify_title_heuristically(raw_text):
     return "Untitled Event"
 
 def resolve_venue(extracted_venue, raw_text):
-    """Improved Venue logic to filter out 'MyCSD' noise."""
+    """Improved Venue logic using dynamic config labels."""
     text_lower = raw_text.lower()
     
-    # 1. Check Online Keywords
+    # 1. Check for explicit Venue labels (Venue, Tempat, etc.)
+    venue_pattern = r'(?:' + '|'.join(VENUE_LABELS) + r'):\s*([^\n]+)'
+    prefix_match = re.search(venue_pattern, raw_text, re.IGNORECASE)
+    if prefix_match:
+        return prefix_match.group(1).strip().split('\n')[0]
+
+    # 2. Check Online Keywords
     for platform in VENUE_KEYWORDS["online"]:
         if platform in text_lower:
             return platform.title()
 
-    # 2. Filter out MyCSD noise from NLP guess
+    # 3. Filter out MyCSD noise from NLP guess
     if any(bad in extracted_venue.lower() for bad in VENUE_KEYWORDS["ignore_list"]):
         extracted_venue = "Online"
 
-    # 3. Clean specific building indicators
+    # 4. Clean specific building indicators[cite: 1]
     if any(ind in extracted_venue.lower() for ind in VENUE_KEYWORDS["physical_indicators"]):
         return extracted_venue.split('\n')[0].strip()
 

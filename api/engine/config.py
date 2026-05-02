@@ -1,14 +1,28 @@
 # api/engine/config.py
 
+
 # Phrases that are almost NEVER titles
 NEGATIVE_TITLE_KEYWORDS = [
     "d-day", "days to go", "happening now", "announcement", 
     "theme", "update", "reminder", "registration", "greetings", "calling all"
 ]
 
-# Venue Mapping
+# Labels for Dates and Times
+DATE_LABELS = ["Date", "Tarikh", "Hari", "Period", "Tempoh"]
+TIME_LABELS = ["Time", "Masa", "Waktu"]
+
+# Labels used to find Venue information
+VENUE_LABELS = ["Venue", "Location", "Place", "Tempat", "Lokasi", "Platform"]
+
 VENUE_KEYWORDS = {
-    "online": ["webex", "google meet", "zoom", "teams", "fb live", "youtube live"],
+    "online": ["webex", "google meet", "zoom", "teams", "fb live"],
     "physical_indicators": ["dewan", "dud", "bilik", "foyer", "padang", "kompleks", "pusat", "dk"],
     "ignore_list": ["mycsd", "earn", "provided", "points", "register", "whatsapp"]
 }
+
+# Labels used to find Fee information
+FEE_LABELS = ["Fee", "Yuran", "Harga", "Bayaran", "RM"]
+
+CURRENCY_PREFIXES = ["RM", "MYR", "$"]
+
+FREE_KEYWORDS = ["Free", "Percuma"]

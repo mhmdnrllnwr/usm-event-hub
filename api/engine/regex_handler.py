@@ -1,5 +1,6 @@
 import re
-import dateparser
+from dateparser.search import search_dates
+from .config import CURRENCY_PREFIXES, FEE_LABELS, FREE_KEYWORDS
 
 def extract_links(text):
     url_pattern = r'https?://[^\s]+'
@@ -11,7 +12,7 @@ def extract_dates_and_times(text):
     Extracts dates and times using dateparser instead of custom regex.
     `search_dates` returns a list of tuples: (substring, datetime_obj)
     """
-    from dateparser.search import search_dates
+    
     found_dates = search_dates(text)
     dates_extracted = []
     if found_dates:
@@ -29,16 +30,24 @@ def extract_times(text):
 
 
 def extract_fee(text):
-    # Check explicitly for "Free" or "Percuma" labels attached to fee/yuran words
-    if re.search(r'(fee|yuran pendaftaran|yuran|bayaran)\s*[:\-]\s*(free|percuma|\d{0})', text, re.IGNORECASE):
+    """Detects fee status using dynamic config labels[cite: 1]."""
+    
+    # Create reusable patterns from config[cite: 1]
+    fee_p = '|'.join(FEE_LABELS)
+    free_p = '|'.join(FREE_KEYWORDS)
+    curr_p = '|'.join(CURRENCY_PREFIXES)
+
+    # 1. Check explicitly for "Fee: Free" or "Yuran: Percuma"[cite: 1]
+    if re.search(fr'({fee_p})\s*[:\-]\s*({free_p}|\d{{0}})', text, re.IGNORECASE):
         return "Free"
     
-    # Check explicitly for Free/Percuma anywhere in the text if no RM digits found
-    if re.search(r'\b(percuma|free)\b', text, re.IGNORECASE) and not re.search(r'RM\s*[1-9]', text, re.IGNORECASE):
+    # 2. Check for Free/Percuma anywhere if no Currency (RM) digits are found[cite: 1]
+    if re.search(fr'\b({free_p})\b', text, re.IGNORECASE) and not re.search(fr'{curr_p}\s*[1-9]', text, re.IGNORECASE):
         return "Free"
 
-    # Looks for 'RM' followed by numbers greater than 0, or Paid fee labels
-    if re.search(r'RM\s*[1-9]+', text, re.IGNORECASE) or re.search(r'(fee|yuran pendaftaran|yuran)\s*[:\-]\s*(?!free|percuma|0)', text, re.IGNORECASE):
+    # 3. Look for Currency followed by numbers, or Paid fee labels[cite: 1]
+    if re.search(fr'{curr_p}\s*[1-9]+', text, re.IGNORECASE) or \
+       re.search(fr'({fee_p})\s*[:\-]\s*(?!{free_p}|0)', text, re.IGNORECASE):
         return "Paid"
         
     return "Free"
