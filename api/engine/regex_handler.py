@@ -30,24 +30,29 @@ def extract_times(text):
 
 
 def extract_fee(text):
-    """Detects fee status using dynamic config labels[cite: 1]."""
+    """Detects fee status using safe regex escaping and prioritized logic."""
     
-    # Create reusable patterns from config[cite: 1]
-    fee_p = '|'.join(FEE_LABELS)
-    free_p = '|'.join(FREE_KEYWORDS)
-    curr_p = '|'.join(CURRENCY_PREFIXES)
+    # Use re.escape to handle symbols like '$' safely
+    fee_p = '|'.join(map(re.escape, FEE_LABELS))
+    free_p = '|'.join(map(re.escape, FREE_KEYWORDS))
+    curr_p = '|'.join(map(re.escape, CURRENCY_PREFIXES))
 
-    # 1. Check explicitly for "Fee: Free" or "Yuran: Percuma"[cite: 1]
-    if re.search(fr'({fee_p})\s*[:\-]\s*({free_p}|\d{{0}})', text, re.IGNORECASE):
+    # 1. PRIORITY: If we see a currency followed by a number > 0, it's PAID
+    # Example: "RM 10" or "$5"
+    if re.search(fr'({curr_p})\s*[1-9]\d*', text, re.IGNORECASE):
+        return "Paid"
+
+    # 2. Check for explicit "Fee: Free" or "Yuran: Percuma"
+    if re.search(fr'({fee_p})\s*[:\-]\s*({free_p})', text, re.IGNORECASE):
         return "Free"
     
-    # 2. Check for Free/Percuma anywhere if no Currency (RM) digits are found[cite: 1]
-    if re.search(fr'\b({free_p})\b', text, re.IGNORECASE) and not re.search(fr'{curr_p}\s*[1-9]', text, re.IGNORECASE):
+    # 3. Check for Free/Percuma anywhere if no price was found in Step 1[cite: 1]
+    if re.search(fr'\b({free_p})\b', text, re.IGNORECASE):
         return "Free"
 
-    # 3. Look for Currency followed by numbers, or Paid fee labels[cite: 1]
-    if re.search(fr'{curr_p}\s*[1-9]+', text, re.IGNORECASE) or \
-       re.search(fr'({fee_p})\s*[:\-]\s*(?!{free_p}|0)', text, re.IGNORECASE):
+    # 4. Check for Paid labels with no price yet found[cite: 1]
+    # Example: "Fee: Paid" or "Bayaran: Dibutuhkan"
+    if re.search(fr'({fee_p})\s*[:\-]\s*(?!{free_p}|0)', text, re.IGNORECASE):
         return "Paid"
         
     return "Free"

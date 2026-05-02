@@ -21,7 +21,7 @@ VENUE_KEYWORDS = {
 }
 
 # Labels used to find Fee information
-FEE_LABELS = ["Fee", "Yuran", "Harga", "Bayaran", "RM"]
+FEE_LABELS = ["Fee", "Yuran", "Harga", "Bayaran","Fees"]
 
 CURRENCY_PREFIXES = ["RM", "MYR", "$"]
 

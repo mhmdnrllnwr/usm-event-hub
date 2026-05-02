@@ -1,9 +1,3 @@
-# FILE FUNCTION: Orchestrates multiple containers (API + Database).
-# WHAT YOU CAN DO: 
-# - Change the ports (e.g., change 8000 to 5000).
-# - Add new services (like a Frontend or a different DB).
-# WHEN TO CHANGE: When you want to add more "pieces" to your system.
-
 services:
   mongodb:
     image: mongo:latest
@@ -22,10 +16,13 @@ services:
       - .env
     depends_on:
       - mongodb
+    # --- LIVE RELOAD SETUP ---
     volumes:
-      - ./api/static:/app/static # Mount local static folder to container
+      - ./api:/app               # Mount the entire api folder to /app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload #
+    # -------------------------
     environment:
-      - BOT_TOKEN=${BOT_TOKEN} # API needs this to download files
+      - BOT_TOKEN=${BOT_TOKEN}
   
   bot:
     build: ./bot
@@ -33,7 +30,13 @@ services:
     env_file:
       - .env
     depends_on:
-      - api # Ensures the Brain is ready before the Bot starts listening
+      - api
+    # --- LIVE RELOAD SETUP ---
+    volumes:
+      - ./bot:/app               # Sync bot code for instant updates
+    # If your bot script is named main.py, ensure it runs directly
+    command: python main.py      #
+    # -------------------------
 
 volumes:
   mongo_data:
