@@ -119,13 +119,26 @@ def extract_entities(raw_text):
                     entities["venue"] = potential_venue
                     
         # Date Extraction using labels
-        if re.search(r'(date|tarikh|hari)\s*[:\-]', norm_kw_line, re.IGNORECASE):
-            date_match = re.split(r'(date|tarikh|hari)\s*[:\-]', norm_kw_line, maxsplit=1, flags=re.IGNORECASE)
+        if re.search(r'(date|tarikh|hari|period|tempoh)\s*[:\-]', norm_kw_line, re.IGNORECASE):
+            date_match = re.split(r'(date|tarikh|hari|period|tempoh)\s*[:\-]', norm_kw_line, maxsplit=1, flags=re.IGNORECASE)
             if len(date_match) > 2:
                 val = date_match[2].strip()
                 val = re.sub(r'^[^\w\s]+', '', val).strip()
                 if val:
-                    entities["date_spacy"].insert(0, val) # Push to front to prioritize
+                    val = re.sub(r'[-–—]', '-', val)
+                    # Support splitting fully formed date ranges directly in NLP
+                    if re.search(r'\s+(to|hingga)\s+', val, re.IGNORECASE):
+                        parts = re.split(r'\s+(?:to|hingga)\s+', val, flags=re.IGNORECASE)
+                        entities["date_spacy"].insert(0, f"{parts[0].strip()} hingga {parts[1].strip()}")
+                    elif "-" in val:
+                        parts = val.split("-")
+                        # Only symmetric split if both sides are likely dates (not "15-20 Nov")
+                        if len(parts[0].split()) > 1 and len(parts[1].split()) > 1:
+                            entities["date_spacy"].insert(0, f"{parts[0].strip()} hingga {parts[1].strip()}")
+                        else:
+                            entities["date_spacy"].insert(0, val)
+                    else:
+                        entities["date_spacy"].insert(0, val)
                     
         # Time Extraction using labels
         if re.search(r'(time|masa|waktu)\s*[:\-]', norm_kw_line, re.IGNORECASE):
@@ -134,6 +147,8 @@ def extract_entities(raw_text):
                 val = time_match[2].strip()
                 val = re.sub(r'^[^\w\s]+', '', val).strip()
                 if val:
+                    # Normalize various dash formats to standard hyphen
+                    val = re.sub(r'[-–—]', '-', val)
                     # Split range strings if "to" or "-" or "hingga" is clearly used
                     if re.search(r'\s+(to|hingga)\s+', val, re.IGNORECASE):
                         parts = re.split(r'\s+(?:to|hingga)\s+', val, flags=re.IGNORECASE)

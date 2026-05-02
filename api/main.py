@@ -65,25 +65,36 @@ async def process_raw_message(data: RawTelegramMessage):
     # This handles ranges (12-13 April) and mirrors single dates
     if len(dates) > 0:
         first_date_str = dates[0]
+        # Normalize en-dashes/em-dashes to hyphens
+        first_date_str = re.sub(r'[-–—]', '-', first_date_str)
         
         # Check if already stated as a range "X to Y" or "X hingga Y"
         if re.search(r'\s+(to|hingga)\s+', first_date_str, re.IGNORECASE):
             parts = re.split(r'\s+(?:to|hingga)\s+', first_date_str, flags=re.IGNORECASE)
             start_date = parts[0].strip()
             end_date = parts[1].strip()
-        # Scenario A: Detect a range like "12-13 April 2025"
+        # Scenario A: Detect a range using hyphens
         elif "-" in first_date_str:
-            try:
-                parts = first_date_str.split() # Result: ['12-13', 'April', '2025']
-                day_range = parts[0].split("-") # Result: ['12', '13']
-                month_year = " ".join(parts[1:]) # Result: "April 2025"
-                
-                start_date = f"{day_range[0]} {month_year}"
-                end_date = f"{day_range[1]} {month_year}"
-            except Exception:
-                # Fallback if splitting fails (e.g. weird spacing)
-                start_date = first_date_str
-                end_date = first_date_str
+            parts = first_date_str.split("-")
+            p1 = parts[0].strip()
+            p2 = parts[1].strip()
+            
+            # Use regex to verify if left side contains text (e.g. May) vs just numbers ("12")
+            if re.search(r'[A-Za-z]', p1):
+                start_date = p1
+                end_date = p2
+            # If the first part is just a number (like "12 - 13 April 2025")
+            else:
+                try:
+                    month_year = " ".join(p2.split()[1:])
+                    if month_year:
+                        start_date = f"{p1} {month_year}".strip()
+                    else:
+                        start_date = p1
+                    end_date = p2
+                except Exception:
+                    start_date = first_date_str
+                    end_date = p2
         else:
             # Scenario B: Single date found (13 April 2025)
             # We mirror it to avoid picking up the registration deadline (dates[1])
