@@ -1,24 +1,46 @@
 import re
+import dateparser
 
 def extract_links(text):
     url_pattern = r'https?://[^\s]+'
     links = re.findall(url_pattern, text)
     return [link.rstrip('.,!?)') for link in links]
 
+def extract_dates_and_times(text):
+    """
+    Extracts dates and times using dateparser instead of custom regex.
+    `search_dates` returns a list of tuples: (substring, datetime_obj)
+    """
+    from dateparser.search import search_dates
+    found_dates = search_dates(text)
+    dates_extracted = []
+    if found_dates:
+        for substring, obj in found_dates:
+            dates_extracted.append(substring)
+    return dates_extracted
+
 def extract_dates(text):
-    # Added (\d{1,2}(?:st|nd|rd|th)?) to catch "17th" or "2nd"
-    date_pattern = r'(\d{1,2}(?:st|nd|rd|th|(?:\-\d{1,2}))?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{2,4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
-    return re.findall(date_pattern, text, re.IGNORECASE)
+    # Backward compatibility, or can just use extract_dates_and_times directly
+    return extract_dates_and_times(text)
 
 def extract_times(text):
-    # Improved to handle PM/AM stuck to the numbers (e.g., 8:00PM)
-    time_pattern = r'\d{1,2}(?::\d{2})?\s?(?:[AaPp]\.?[Mm]\.?)'
-    return re.findall(time_pattern, text, re.IGNORECASE)
+    # dateparser handles both dates and times together if found
+    return extract_dates_and_times(text)
+
 
 def extract_fee(text):
-    # Looks for 'RM' followed by numbers. If found, it's paid.
-    if re.search(r'RM\s*\d+', text, re.IGNORECASE):
+    # Check explicitly for "Free" or "Percuma" labels attached to fee/yuran words
+    if re.search(r'(fee|yuran pendaftaran|yuran|bayaran)\s*[:\-]\s*(free|percuma|\d{0})', text, re.IGNORECASE):
+        return "Free"
+    
+    # Check explicitly for Free/Percuma anywhere in the text if no RM digits found
+    if re.search(r'\b(percuma|free)\b', text, re.IGNORECASE) and not re.search(r'RM\s*[1-9]', text, re.IGNORECASE):
+        return "Free"
+
+    # Looks for 'RM' followed by numbers greater than 0, or Paid fee labels
+    if re.search(r'RM\s*[1-9]+', text, re.IGNORECASE) or re.search(r'(fee|yuran pendaftaran|yuran)\s*[:\-]\s*(?!free|percuma|0)', text, re.IGNORECASE):
         return "Paid"
+        
     return "Free"
 
 def check_mycsd(text):

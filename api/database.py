@@ -16,6 +16,29 @@ client = AsyncIOMotorClient(MONGO_DETAILS)
 database = client.event_hub
 event_collection = database.get_collection("events_collection")
 
+async def get_events(search_term: str = None, free_only: bool = False, mycsd_only: bool = False):
+    query = {}
+    if search_term:
+        query["$or"] = [
+            {"title": {"$regex": search_term, "$options": "i"}},
+            {"start_date": {"$regex": search_term, "$options": "i"}},
+            {"end_date": {"$regex": search_term, "$options": "i"}},
+            {"venue": {"$regex": search_term, "$options": "i"}},
+            {"fee": {"$regex": search_term, "$options": "i"}},
+            {"raw_text": {"$regex": search_term, "$options": "i"}}
+        ]
+    if free_only:
+        query["fee"] = {"$regex": "free|percuma|0", "$options": "i"}
+    if mycsd_only:
+        query["has_mycsd"] = True
+        
+    events = []
+    cursor = event_collection.find(query).sort("_id", -1).limit(10)
+    async for document in cursor:
+        document["_id"] = str(document["_id"])
+        events.append(document)
+    return events
+
 async def check_event_exists(title: str, start_date: str) -> bool:
     event = await event_collection.find_one({"title": title, "start_date": start_date})
     return bool(event)

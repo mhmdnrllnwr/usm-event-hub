@@ -1,11 +1,12 @@
 import unicodedata
 import os
+import re
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 from models import EventCreate
-from database import add_event, check_event_exists
+from database import add_event, check_event_exists, get_events
 from engine.regex_handler import extract_links, extract_dates, check_mycsd, extract_times, extract_fee
 from engine.nlp_handler import extract_entities
 from utils.image_handler import download_telegram_image
@@ -24,6 +25,23 @@ class RawTelegramMessage(BaseModel):
     text: str
     image_url: Optional[str] = None
 
+@app.get("/events")
+async def fetch_events(
+    search: Optional[str] = Query(None, description="Search regex on title"),
+    fee: Optional[str] = Query(None, description="Filter for 'Free'"),
+    has_mycsd: Optional[bool] = Query(None, description="Boolean flag for mycsd requirement")
+):
+    free_only = False
+    if fee and fee.lower() == "free":
+        free_only = True
+        
+    mycsd_only = False
+    if has_mycsd is True:
+        mycsd_only = True
+        
+    events = await get_events(search_term=search, free_only=free_only, mycsd_only=mycsd_only)
+    return {"status": "success", "events": events}
+
 @app.post("/events/process")
 async def process_raw_message(data: RawTelegramMessage):
     # STEP 0: NORMALIZE FANCY FONTS
@@ -33,21 +51,28 @@ async def process_raw_message(data: RawTelegramMessage):
     if not raw_text:
         raise HTTPException(status_code=400, detail="No text provided")
 
-    # 1. Run NLP Engine (Prioritizes first lines for Title)
+    # 1. Run NLP Engine
     nlp_results = extract_entities(raw_text)
     
     # 2. Run Regex Engine to find all candidates
     links = extract_links(raw_text)
-    dates = extract_dates(raw_text)
-    times = extract_times(raw_text)
+    
+    # Use spaCy for dates and times as it's more accurate for context than broad dateparser
+    dates = nlp_results.get("date_spacy", [])
+    times = nlp_results.get("time_spacy", [])
     
     # 3. ADVANCED DATE LOGIC
     # This handles ranges (12-13 April) and mirrors single dates
     if len(dates) > 0:
         first_date_str = dates[0]
         
+        # Check if already stated as a range "X to Y" or "X hingga Y"
+        if re.search(r'\s+(to|hingga)\s+', first_date_str, re.IGNORECASE):
+            parts = re.split(r'\s+(?:to|hingga)\s+', first_date_str, flags=re.IGNORECASE)
+            start_date = parts[0].strip()
+            end_date = parts[1].strip()
         # Scenario A: Detect a range like "12-13 April 2025"
-        if "-" in first_date_str:
+        elif "-" in first_date_str:
             try:
                 parts = first_date_str.split() # Result: ['12-13', 'April', '2025']
                 day_range = parts[0].split("-") # Result: ['12', '13']
