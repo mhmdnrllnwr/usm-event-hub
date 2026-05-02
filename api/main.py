@@ -79,8 +79,10 @@ async def process_raw_message(data: RawTelegramMessage):
             p1 = parts[0].strip()
             p2 = parts[1].strip()
             
-            # Use regex to verify if left side contains text (e.g. May) vs just numbers ("12")
-            if re.search(r'[A-Za-z]', p1):
+            # Use a simpler rule: if the first part is explicitly longer than 2 words, it's a full date object.
+            # e.g., "1 May 2026" (3 words) vs "12" (1 word)
+            p1_words = p1.split()
+            if len(p1_words) >= 2 and any(char.isalpha() for char in p1):
                 start_date = p1
                 end_date = p2
             # If the first part is just a number (like "12 - 13 April 2025")
@@ -94,7 +96,7 @@ async def process_raw_message(data: RawTelegramMessage):
                     end_date = p2
                 except Exception:
                     start_date = first_date_str
-                    end_date = p2
+                    end_date = first_date_str
         else:
             # Scenario B: Single date found (13 April 2025)
             # We mirror it to avoid picking up the registration deadline (dates[1])
@@ -125,7 +127,8 @@ async def process_raw_message(data: RawTelegramMessage):
         end_date=end_date,
         start_time=start_time,
         end_time=end_time,
-        venue=nlp_results["venue"],
+        #vanue code need change
+        venue=nlp_results.get("venue", "TBD").split('\n')[0].strip() if nlp_results.get("venue") else "TBD",
         fee=extract_fee(raw_text),
         registration_link=links[0] if links else "https://t.me/usm_hub",
         has_mycsd=check_mycsd(raw_text),
