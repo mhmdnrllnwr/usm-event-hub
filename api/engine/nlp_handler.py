@@ -183,14 +183,15 @@ def extract_entities(raw_text):
                 break
 
     # General time pattern fallback for formats like "8.00PM", "10:30 AM", 🕒 emoji lines
-    if not entities["time_spacy"]:
-        for line in raw_text.split('\n'):
-            times = re.findall(r'(\d{1,2}[\.:]\d{2}\s*(?:AM|PM|am|pm))', line)
-            if len(times) >= 2:
-                entities["time_spacy"] = [times[0].strip(), times[1].strip()]
-                break
-            elif times:
-                entities["time_spacy"] = [times[0].strip()]
-                break
+    # Runs always — spaCy often combines "8:00 PM – 10:00 PM" into one entity,
+    # regex splits them correctly. If regex finds nothing, keeps spaCy result.
+    for line in raw_text.split('\n'):
+        times = re.findall(r'(\d{1,2}[\.:]\d{2}\s*(?:AM|PM|am|pm))', line)
+        if len(times) >= 2:
+            entities["time_spacy"] = [times[0].strip(), times[1].strip()]
+            break
+        elif times:
+            entities["time_spacy"] = [times[0].strip()]
+            break
 
     return entities

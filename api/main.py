@@ -91,11 +91,11 @@ async def process_raw_message(data: RawTelegramMessage):
     if not dates or not times:
         candidates = nlp_results.get("title_candidates", [])
         extracted_for_ai = {
-                "date_raw": dates[0] if dates else None,
-                "time_raw": times[0] if times else None,
-            }
-            ai_result = await validate_event(candidates, raw_text, extracted_for_ai)
-            if ai_result:
+            "date_raw": dates[0] if dates else None,
+            "time_raw": times[0] if times else None,
+        }
+        ai_result = await validate_event(candidates, raw_text, extracted_for_ai)
+        if ai_result:
                 if ai_result["title"] and ai_result["title"] != nlp_results["title"]:
                     logger.info(f"AI corrected title: '{nlp_results['title']}' -> '{ai_result['title']}'")
                     nlp_results["title"] = ai_result["title"]

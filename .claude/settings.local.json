@@ -24,7 +24,10 @@
       "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Minimal Event\\\\n\\\\nDate: 1 August 2026\\\\nTime: 2pm\\\\nVenue: Online\"}')",
       "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Full Event\\\\n\\\\nDate: 15 August 2026\\\\nTime: 10:00 AM - 4:00 PM\\\\nVenue: Dewan Utama\\\\nFee: RM10\\\\nRegister: https://example.com/register\"}')",
       "Bash(curl -s --max-time 10 http://localhost:8000/events)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(docker compose *)",
+      "PowerShell(python d:\\\\usm-event-hub\\\\test_debug_date.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_debug_date.py)"
     ]
   }
 }

@@ -73,6 +73,8 @@ def format_event(event) -> str:
         st = escape_markdown(st_raw, version=2)
         et = escape_markdown(et_raw, version=2)
         time_str = f"{st} - {et}"
+    elif st_raw:
+        time_str = escape_markdown(st_raw, version=2)
     else:
         time_str = "empty"
 
@@ -213,6 +215,8 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 et_raw = ext.get('end_time')
                 if st_raw and et_raw:
                     time_str = f"{st_raw} - {et_raw}"
+                elif st_raw:
+                    time_str = st_raw
                 else:
                     time_str = "empty"
                 fee_display = ext.get('fee') or "empty"
