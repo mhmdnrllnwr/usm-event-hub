@@ -54,7 +54,7 @@ def extract_fee(text):
     # Example: "Fee: Paid" or "Bayaran: Dibutuhkan"
     if re.search(fr'({fee_p})\s*[:\-]\s*(?!{free_p}|0)', text, re.IGNORECASE):
         return "Paid"
-        
+
     return "Free"
 
 def check_mycsd(text):

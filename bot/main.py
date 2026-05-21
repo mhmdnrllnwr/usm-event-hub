@@ -1,7 +1,9 @@
 import os
+import time
 import httpx
 import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.helpers import escape_markdown
 from telegram.ext import (
     ApplicationBuilder, 
     ContextTypes, 
@@ -16,8 +18,22 @@ from telegram.ext import (
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 TOKEN = os.getenv("BOT_TOKEN")
-API_URL = "http://api:8000/events" 
+API_URL = "http://api:8000/events"
 PROCESS_URL = "http://api:8000/events/process"
+
+def wait_for_api():
+    max_retries = 30
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = httpx.get(API_URL, timeout=5)
+            if resp.status_code == 200:
+                logging.info("API ready")
+                return
+        except Exception as e:
+            logging.warning(f"API not ready (attempt {attempt}/{max_retries}): {e}")
+            time.sleep(2)
+    logging.error("API not available. Exiting.")
+    exit(1)
 
 SEARCHING = 1
 
@@ -40,17 +56,50 @@ def get_inline_filters(current_filter="none"):
         
     return InlineKeyboardMarkup(keyboard)
 
+def _format_date(start: str | None, end: str | None) -> str:
+    if not start and not end:
+        return "empty"
+    if start and end and end != start:
+        return f"{start} - {end}"
+    return start or "empty"
+
 def format_event(event) -> str:
-    time_str = f"{event.get('start_time', 'TBD')} - {event.get('end_time', 'TBD')}"
+    title = escape_markdown(event.get('title', 'Unknown Event'), version=2)
+    date = escape_markdown(_format_date(event.get('start_date'), event.get('end_date')), version=2)
+
+    st_raw = event.get('start_time')
+    et_raw = event.get('end_time')
+    if st_raw and et_raw:
+        st = escape_markdown(st_raw, version=2)
+        et = escape_markdown(et_raw, version=2)
+        time_str = f"{st} - {et}"
+    else:
+        time_str = "empty"
+
+    fee = escape_markdown(event.get('fee') or 'empty', version=2)
+    venue = escape_markdown(event.get('venue') or 'empty', version=2)
+
+    link_raw = event.get('registration_link')
+    if link_raw:
+        link = escape_markdown(str(link_raw), version=2)
+        link_line = f"🔗 **Link:** [Register/More Info]({link})"
+    else:
+        link_line = "🔗 **Link:** empty"
+
+    mycsd = 'Yes' if event.get('has_mycsd') else 'No'
+    status = event.get("status", "upcoming")
+    status_icon = {"active": "🟢", "expired": "🔴", "upcoming": "🟡"}
+    status_badge = f"{status_icon.get(status, '🟡')} **{status.upper()}**\n"
     return (
-        f"📅 **{event.get('title', 'Unknown Event')}**\n"
+        f"📅 **{title}**\n"
+        f"{status_badge}"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🗓 **Date:** {event.get('start_date', 'TBD')} to {event.get('end_date', 'TBD')}\n"
+        f"🗓 **Date:** {date}\n"
         f"🕒 **Time:** {time_str}\n"
-        f"💰 **Fee:** {event.get('fee', 'Unknown')}\n"
-        f"📍 **Venue:** {event.get('venue', 'TBD')}\n"
-        f"🌟 **MyCSD:** {'Yes' if event.get('has_mycsd') else 'No'}\n"
-        f"🔗 **Link:** [Register/More Info]({event.get('registration_link', 'https://t.me/usm_hub')})\n"
+        f"💰 **Fee:** {fee}\n"
+        f"📍 **Venue:** {venue}\n"
+        f"🌟 **MyCSD:** {mycsd}\n"
+        f"{link_line}\n"
     )
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -83,13 +132,13 @@ async def fetch_and_send_events(update: Update, query_params: dict, filter_type:
 
             if message_to_edit:
                 await message_to_edit.edit_text(
-                    text, parse_mode="Markdown", 
+                    text, parse_mode="MarkdownV2",
                     reply_markup=get_inline_filters(filter_type),
                     disable_web_page_preview=True
                 )
             else:
                 await update.message.reply_text(
-                    text, parse_mode="Markdown", 
+                    text, parse_mode="MarkdownV2",
                     reply_markup=get_inline_filters(filter_type),
                     disable_web_page_preview=True
                 )
@@ -160,27 +209,39 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 data = response.json()
                 ext = data.get("extracted_data", {})
                 
-                time_str = f"{ext.get('start_time', 'TBD')} - {ext.get('end_time', 'TBD')}"
+                st_raw = ext.get('start_time')
+                et_raw = ext.get('end_time')
+                if st_raw and et_raw:
+                    time_str = f"{st_raw} - {et_raw}"
+                else:
+                    time_str = "empty"
+                fee_display = ext.get('fee') or "empty"
+                venue_display = ext.get('venue') or "empty"
+                link_raw = ext.get('registration_link')
+                link_display = link_raw if link_raw else "empty"
+                status = ext.get("status", "upcoming")
+                status_icon = {"active": "🟢", "expired": "🔴", "upcoming": "🟡"}
+                status_tag = f"{status_icon.get(status, '🟡')} <b>{status.upper()}</b>\n"
                 reply_markup = (
-                    f"✅ **EVENT CAPTURED**\n"
+                    f"✅ <b>EVENT CAPTURED</b>\n"
+                    f"{status_tag}"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"📝 **Title:** {ext.get('title')}\n"
-                    f"📅 **Start Date:** {ext.get('start_date')}\n"
-                    f"📅 **End Date:** {ext.get('end_date')}\n"
-                    f"🕒 **Time:** {time_str}\n"
-                    f"💰 **Fee:** {ext.get('fee')}\n"
-                    f"📍 **Venue:** {ext.get('venue')}\n"
-                    f"🔗 **Link:** {ext.get('registration_link')}\n"
+                    f"📝 <b>Title:</b> {ext.get('title')}\n"
+                    f"📅 <b>Date:</b> {_format_date(ext.get('start_date'), ext.get('end_date'))}\n"
+                    f"🕒 <b>Time:</b> {time_str}\n"
+                    f"💰 <b>Fee:</b> {fee_display}\n"
+                    f"📍 <b>Venue:</b> {venue_display}\n"
+                    f"🔗 <b>Link:</b> {link_display}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 `ID: {data.get('id')}`"
+                    f"🆔 <code>ID: {data.get('id')}</code>"
                 )
 
                 if file_id:
-                    await update.message.reply_photo(photo=file_id, caption=reply_markup, parse_mode="Markdown")
+                    await update.message.reply_photo(photo=file_id, caption=reply_markup, parse_mode="HTML")
                 else:
-                    await update.message.reply_text(reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
+                    await update.message.reply_text(reply_markup, parse_mode="HTML", disable_web_page_preview=True)
             elif response.status_code == 409:
-                await update.message.reply_text("⚠️ **Event already exists!**", parse_mode="Markdown")
+                await update.message.reply_text("⚠️ <b>Event already exists!</b>", parse_mode="HTML")
             else:
                 await update.message.reply_text("❌ **Failed to process event.**")
         except Exception as e:
@@ -190,7 +251,8 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(TOKEN).build()
-    
+    wait_for_api()
+
     # Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(handle_inline_filters, pattern="^filter:"))

@@ -12,12 +12,12 @@ from typing import Optional
 class EventCreate(BaseModel):
     title: str
     image_url: Optional[str] = None
-    start_date: str
+    start_date: Optional[str] = None
     end_date: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
-    venue: Optional[str] = "Online"
-    fee: Optional[str] = "Free"
-    registration_link: HttpUrl
+    venue: Optional[str] = None
+    fee: Optional[str] = None
+    registration_link: Optional[HttpUrl] = None
     has_mycsd: bool = False
     raw_text: str

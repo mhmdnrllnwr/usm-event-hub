@@ -23,6 +23,7 @@ services:
     # -------------------------
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
   
   bot:
     build: ./bot

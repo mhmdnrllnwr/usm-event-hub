@@ -20,6 +20,13 @@ VENUE_KEYWORDS = {
     "ignore_list": ["mycsd", "earn", "provided", "points", "register", "whatsapp"]
 }
 
+# --- AI Title Validation ---
+DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
+DEEPSEEK_MODEL = "deepseek-chat"
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_TIMEOUT_SECONDS = 10
+TITLE_CONFIDENCE_THRESHOLD = 6
+
 # Labels used to find Fee information
 FEE_LABELS = ["Fee", "Yuran", "Harga", "Bayaran","Fees"]
 

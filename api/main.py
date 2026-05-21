@@ -1,17 +1,33 @@
 import unicodedata
 import os
 import re
+import logging
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 from models import EventCreate
-from database import add_event, check_event_exists, get_events
+from database import add_event, check_event_exists, get_events, compute_status
 from engine.regex_handler import extract_links, extract_dates, check_mycsd, extract_times, extract_fee
 from engine.nlp_handler import extract_entities
+from engine.config import TITLE_CONFIDENCE_THRESHOLD
+from engine.ai_handler import validate_title, validate_event
 from utils.image_handler import download_telegram_image
 
 app = FastAPI(title="USM Event Hub API")
+logger = logging.getLogger(__name__)
+
+
+def validate_date(date_str: str | None) -> str | None:
+    """Return date if it has day+month+year, else None."""
+    if not date_str:
+        return None
+    if date_str == "TBD":
+        return "TBD"
+    has_day = bool(re.search(r'(?<!\d)\d{1,2}(?!\d)', date_str))
+    has_month = bool(re.search(r'[A-Za-z]{3,}', date_str))
+    has_year = bool(re.search(r'\b\d{4}\b', date_str))
+    return date_str if (has_day and has_month and has_year) else None
 
 # Create the directory if it doesn't exist
 UPLOAD_DIR = "static/posters"
@@ -53,14 +69,45 @@ async def process_raw_message(data: RawTelegramMessage):
 
     # 1. Run NLP Engine
     nlp_results = extract_entities(raw_text)
-    
+
+    # 1.5 AI Title Validation (if confidence is low)
+    title_scores = nlp_results.get("title_scores", [])
+    if title_scores and max(title_scores) < TITLE_CONFIDENCE_THRESHOLD:
+        candidates = nlp_results.get("title_candidates", [])
+        if candidates:
+            ai_title = await validate_title(candidates, raw_text)
+            if ai_title and ai_title != nlp_results["title"]:
+                logger.info(f"AI corrected title: '{nlp_results['title']}' -> '{ai_title}'")
+                nlp_results["title"] = ai_title
+
     # 2. Run Regex Engine to find all candidates
     links = extract_links(raw_text)
     
     # Use spaCy for dates and times as it's more accurate for context than broad dateparser
     dates = nlp_results.get("date_spacy", [])
     times = nlp_results.get("time_spacy", [])
-    
+
+    # 2.5 AI Date & Time Validation (if heuristic missed dates or times)
+    if not dates or not times:
+        candidates = nlp_results.get("title_candidates", [])
+        extracted_for_ai = {
+                "date_raw": dates[0] if dates else None,
+                "time_raw": times[0] if times else None,
+            }
+            ai_result = await validate_event(candidates, raw_text, extracted_for_ai)
+            if ai_result:
+                if ai_result["title"] and ai_result["title"] != nlp_results["title"]:
+                    logger.info(f"AI corrected title: '{nlp_results['title']}' -> '{ai_result['title']}'")
+                    nlp_results["title"] = ai_result["title"]
+
+                if ai_result["date"]:
+                    dates.insert(0, ai_result["date"])
+                    logger.info(f"AI added date: '{ai_result['date']}'")
+
+                if ai_result["time"]:
+                    times.insert(0, ai_result["time"])
+                    logger.info(f"AI added time: '{ai_result['time']}'")
+
     # 3. ADVANCED DATE LOGIC
     # This handles ranges (12-13 April) and mirrors single dates
     if len(dates) > 0:
@@ -85,6 +132,11 @@ async def process_raw_message(data: RawTelegramMessage):
             if len(p1_words) >= 2 and any(char.isalpha() for char in p1):
                 start_date = p1
                 end_date = p2
+                # If p1 has month but no year, borrow year from p2
+                if not re.search(r'\b\d{4}\b', start_date):
+                    year_match = re.search(r'(\b\d{4}\b)', end_date)
+                    if year_match:
+                        start_date = f"{start_date} {year_match.group(1)}"
             # If the first part is just a number (like "12 - 13 April 2025")
             else:
                 try:
@@ -104,9 +156,13 @@ async def process_raw_message(data: RawTelegramMessage):
             end_date = first_date_str
     else:
         # Scenario C: No date found
-        start_date = "TBD"
+        start_date = None
         end_date = None
-    
+
+    # Validate: reject incomplete dates
+    start_date = validate_date(start_date)
+    end_date = validate_date(end_date)
+
     # 4. Time Logic (Supports a.m./p.m. with dots)
     start_time = times[0] if len(times) > 0 else None
     end_time = times[1] if len(times) > 1 else None
@@ -128,9 +184,9 @@ async def process_raw_message(data: RawTelegramMessage):
         start_time=start_time,
         end_time=end_time,
         #vanue code need change
-        venue=nlp_results.get("venue", "TBD").split('\n')[0].strip() if nlp_results.get("venue") else "TBD",
+        venue=nlp_results.get("venue").split('\n')[0].strip() if nlp_results.get("venue") else None,
         fee=extract_fee(raw_text),
-        registration_link=links[0] if links else "https://t.me/usm_hub",
+        registration_link=links[0] if links else None,
         has_mycsd=check_mycsd(raw_text),
         raw_text=raw_text
     )
@@ -142,9 +198,12 @@ async def process_raw_message(data: RawTelegramMessage):
 
     # 6. Save to MongoDB
     event_id = await add_event(event_data)
-    
+
+    extracted = event_data.model_dump()
+    extracted["status"] = compute_status(extracted)
+
     return {
-        "status": "success", 
-        "extracted_data": event_data, 
+        "status": "success",
+        "extracted_data": extracted,
         "id": str(event_id)
     }

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\" -Recurse -Depth 3 -Filter \"settings.json\" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match \"claude\" } | Select-Object FullName)",
+      "PowerShell(Get-Content -Path \"C:\\\\Users\\\\nuril\\\\.claude\\\\plugins\\\\installed_plugins.json\" -ErrorAction SilentlyContinue | ForEach-Object { $_ })",
+      "Bash(docker exec event_db *)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(docker-compose down *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker restart event_bot *)",
+      "Bash(docker exec *)",
+      "Bash(curl -s \"http://localhost:8000/events?search=Hackathon\")",
+      "Bash(curl -s \"http://localhost:8000/events?search=TBD\")",
+      "Bash(curl -s -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\": \"Parenthesis Event\\\\n\\\\nDate: 25 July 2026\\\\nTime: 3:00 PM\\\\nVenue: Online\\\\nRegister: https://example.com/event\\(2026\\)\"}')",
+      "Bash(curl -s \"http://localhost:8000/events\")",
+      "Bash(curl -s -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Event No Year\\\\n\\\\nDate: 12 April\\\\nTime: 2pm\\\\nVenue: Online\"}')",
+      "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Event No Year\\\\n\\\\nDate: 12 April\\\\nTime: 2pm\\\\nVenue: Online\"}')",
+      "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Event Full Date\\\\n\\\\nDate: 13 April 2025\\\\nTime: 2pm\\\\nVenue: Online\"}')",
+      "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Event Range\\\\n\\\\nDate: 12-13 April 2025\\\\nTime: 2pm\\\\nVenue: Online\"}')",
+      "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Event No Date\\\\n\\\\nTime: 2pm\\\\nVenue: Online\"}')",
+      "Bash(curl -s --max-time 10 \"http://localhost:8000/events?search=Hackathon\")",
+      "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Minimal Event\\\\n\\\\nDate: 1 August 2026\\\\nTime: 2pm\\\\nVenue: Online\"}')",
+      "Bash(curl -s --max-time 10 -X POST http://localhost:8000/events/process -H \"Content-Type: application/json\" -d '{\"text\":\"Full Event\\\\n\\\\nDate: 15 August 2026\\\\nTime: 10:00 AM - 4:00 PM\\\\nVenue: Dewan Utama\\\\nFee: RM10\\\\nRegister: https://example.com/register\"}')",
+      "Bash(curl -s --max-time 10 http://localhost:8000/events)",
+      "Bash(curl *)"
+    ]
+  }
+}
