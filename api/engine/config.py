@@ -1,5 +1,5 @@
 # api/engine/config.py
-
+import os
 
 # Phrases that are almost NEVER titles
 NEGATIVE_TITLE_KEYWORDS = [
@@ -26,6 +26,11 @@ DEEPSEEK_MODEL = "deepseek-chat"
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_TIMEOUT_SECONDS = 10
 TITLE_CONFIDENCE_THRESHOLD = 6
+
+# --- Admin Configuration ---
+ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
+
+# --- Labels used to find Fee information
 
 # Labels used to find Fee information
 FEE_LABELS = ["Fee", "Yuran", "Harga", "Bayaran","Fees"]

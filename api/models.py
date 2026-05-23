@@ -20,4 +20,5 @@ class EventCreate(BaseModel):
     fee: Optional[str] = None
     registration_link: Optional[HttpUrl] = None
     has_mycsd: bool = False
+    creator_id: Optional[int] = None
     raw_text: str

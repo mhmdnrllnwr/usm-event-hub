@@ -29,7 +29,8 @@
       "PowerShell(python d:\\\\usm-event-hub\\\\test_debug_date.py)",
       "Bash(PYTHONIOENCODING=utf-8 python test_debug_date.py)",
       "PowerShell(docker exec *)",
-      "PowerShell(docker cp D:\\\\usm-event-hub\\\\test event_api:/app/test)"
+      "PowerShell(docker cp D:\\\\usm-event-hub\\\\test event_api:/app/test)",
+      "PowerShell(docker restart event_bot *)"
     ]
   }
 }
