@@ -1,6 +1,8 @@
 venv/
+.venv/
 __pycache__/
 .env
+.claude/
 api/static/posters/
 text-plan/
 docs/
