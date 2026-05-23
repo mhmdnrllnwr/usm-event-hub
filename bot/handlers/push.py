@@ -70,7 +70,8 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
     view_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Edit", callback_data=f"edit|start|{eid}"),
+        [InlineKeyboardButton("✅ Accept", callback_data="close"),
+         InlineKeyboardButton("✏️ Edit", callback_data=f"edit|start|{eid}"),
          InlineKeyboardButton("\U0001f5d1 Delete", callback_data=f"delete|confirm|{eid}")],
     ])
 
