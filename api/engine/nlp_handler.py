@@ -123,7 +123,11 @@ def extract_entities(raw_text):
             elif ent.label_ == "DATE":
                 # Only keep if contains month-like word (3+ alpha). Filters garbage like "11 31"
                 if re.search(r'[A-Za-z]{3,}', ent.text):
-                    entities["date_spacy"].append(ent.text)
+                    # Also require day digit — spaCy drops day when emoji precedes date
+                    # e.g. "🗓️ 21 May 2026" → "May 2026". Without day, validate_date
+                    # rejects it, so let regex fallback handle.
+                    if re.search(r'\b\d{1,2}\b', ent.text):
+                        entities["date_spacy"].append(ent.text)
             elif ent.label_ == "TIME":
                 entities["time_spacy"].append(ent.text)
 
