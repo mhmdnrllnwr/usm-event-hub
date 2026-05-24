@@ -20,6 +20,29 @@ def _build_browse_params(filters: dict) -> dict:
     return params
 
 
+def render_event_list(events, page, total_pages, total, header):
+    """Build event list text + keyboard. Returns (text, InlineKeyboardMarkup)."""
+    lines = [f"<b>{html.escape(header)}</b> — Page {page}/{total_pages} ({total}) total\n"]
+    start = (page - 1) * ITEMS_PER_PAGE + 1
+    for i, ev in enumerate(events, start):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
+    text = "\n".join(lines)
+
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("◀️ Prev", callback_data=f"list_active|{page-1}"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("Next ▶️", callback_data=f"list_active|{page+1}"))
+
+    kb_buttons = [nav] if nav else []
+    for ev in events[:5]:
+        kb_buttons.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{ev['_id']}")])
+    kb_buttons.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
+    kb_buttons.append([InlineKeyboardButton("❌ Close", callback_data="close")])
+
+    return text, InlineKeyboardMarkup(kb_buttons)
+
+
 async def show_browse(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 1):
     filters = context.user_data.get("browse_filters", {})
     params = _build_browse_params(filters)
@@ -62,9 +85,9 @@ async def show_browse(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
         nav.append(InlineKeyboardButton(f"Next ▶️", callback_data=f"browse|{page+1}"))
 
     action_row = []
-    for ev in events[:3]:
+    for ev in events[:5]:
         short_id = ev["_id"]
-        action_row.append(InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:20]}", callback_data=f"view|{short_id}"))
+        action_row.append(InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{short_id}"))
 
     kb_buttons = [nav, action_row] if action_row else [nav]
     kb_buttons.append([InlineKeyboardButton("\U0001f519 Back to Menu", callback_data="menu")])
@@ -144,25 +167,9 @@ async def handle_list_active(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await q.message.reply_text("\U0001f645 No active events right now.", reply_markup=main_menu_markup(update.effective_user.id))
         return
 
-    lines = [f"<b>Active Events</b> — Page {page}/{total_pages} ({total}) total\n"]
-    start = (page - 1) * ITEMS_PER_PAGE + 1
-    for i, ev in enumerate(events, start):
-        lines.append(f"{i}. {format_event_compact(ev)}\n")
-    text = "\n".join(lines)
-
-    nav = []
-    if page > 1:
-        nav.append(InlineKeyboardButton("◀️ Prev", callback_data=f"list_active|{page-1}"))
-    if page < total_pages:
-        nav.append(InlineKeyboardButton("Next ▶️", callback_data=f"list_active|{page+1}"))
-
-    kb_buttons = [nav] if nav else []
-    for ev in events[:5]:
-        kb_buttons.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{ev['_id']}")])
-    kb_buttons.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
-    kb_buttons.append([InlineKeyboardButton("❌ Close", callback_data="close")])
+    text, reply_markup = render_event_list(events, page, total_pages, total, "Active Events")
 
     if q.message and q.message.text:
-        await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb_buttons), parse_mode="HTML", disable_web_page_preview=True)
+        await q.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML", disable_web_page_preview=True)
     else:
-        await q.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb_buttons), parse_mode="HTML", disable_web_page_preview=True)
+        await q.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML", disable_web_page_preview=True)

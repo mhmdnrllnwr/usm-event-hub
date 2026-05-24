@@ -1,4 +1,3 @@
-import html
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ITEMS_PER_PAGE, IDLE, SEARCHING
@@ -18,10 +17,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["browse_filters"] = {}
-    context.user_data["browse_page"] = 1
-
-    data = await fetch_events({"per_page": ITEMS_PER_PAGE, "sort": "date_asc"})
+    data = await fetch_events({"per_page": ITEMS_PER_PAGE, "page": 1, "status": "active", "sort": "date_asc"})
     if data is None:
         await update.message.reply_text("❌ Error contacting API.", reply_markup=main_menu_markup(update.effective_user.id))
         return
@@ -31,27 +27,12 @@ async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
 
     if not events:
-        await update.message.reply_text("\U0001f645 No events yet.", reply_markup=main_menu_markup(update.effective_user.id))
+        await update.message.reply_text("\U0001f645 No active events right now.", reply_markup=main_menu_markup(update.effective_user.id))
         return
 
-    lines = [f"<b>Events</b> — Page 1/{total_pages} ({total}) total\n"]
-    for i, ev in enumerate(events, 1):
-        lines.append(f"{i}. {html.escape(ev.get('title', '?'))}")
-
-    text = "\n".join(lines)
-
-    nav = []
-    if total_pages > 1:
-        nav.append(InlineKeyboardButton(f"Next ▶️", callback_data="browse|2"))
-
-    kb = [nav] if nav else []
-    for ev in events[:5]:
-        eid = ev["_id"]
-        kb.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{eid}")])
-    kb.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
-    kb.append([InlineKeyboardButton("❌ Close", callback_data="close")])
-
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="HTML", disable_web_page_preview=True)
+    from .browse import render_event_list
+    text, reply_markup = render_event_list(events, 1, total_pages, total, "Active Events")
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML", disable_web_page_preview=True)
 
 
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
