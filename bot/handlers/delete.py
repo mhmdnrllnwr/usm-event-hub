@@ -10,11 +10,13 @@ async def handle_delete_confirm(update: Update, context: ContextTypes.DEFAULT_TY
     parts = q.data.split("|")
     event_id = parts[2]
 
+    cancel_data = f"batch|back_to_summary" if context.user_data.get("batch_summary_msg_id") else f"view|{event_id}"
+
     await q.edit_message_text(
         "❓ Delete this event?\n\nThis cannot be undone.",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Yes, delete", callback_data=f"delete|yes|{event_id}"),
-             InlineKeyboardButton("❌ Cancel", callback_data=f"view|{event_id}")],
+             InlineKeyboardButton("❌ Cancel", callback_data=cancel_data)],
         ]),
     )
 
@@ -26,7 +28,15 @@ async def handle_delete_execute(update: Update, context: ContextTypes.DEFAULT_TY
     event_id = parts[2]
 
     success = await delete_event(event_id)
-    if success:
-        await q.edit_message_text("✅ Event deleted.", reply_markup=main_menu_markup(update.effective_user.id))
+    has_batch = bool(context.user_data.get("batch_summary_msg_id"))
+    if has_batch:
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Back to Batch Summary", callback_data="batch|back_to_summary")],
+        ])
     else:
-        await q.edit_message_text("❌ Failed to delete event.", reply_markup=main_menu_markup(update.effective_user.id))
+        markup = main_menu_markup(update.effective_user.id)
+
+    if success:
+        await q.edit_message_text("✅ Event deleted.", reply_markup=markup)
+    else:
+        await q.edit_message_text("❌ Failed to delete event.", reply_markup=markup)

@@ -53,3 +53,24 @@ def format_event(event: dict) -> str:
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
+
+
+def format_event_compact(event: dict) -> str:
+    title = event.get("title", "?")
+    status = event.get("status", "upcoming").upper()
+    st = event.get("start_time")
+    et = event.get("end_time")
+    time_str = f"{st} – {et}" if st and et else (st or "-")
+    fee = event.get("fee") or "-"
+    venue = event.get("venue") or "-"
+    link = event.get("registration_link") or "-"
+
+    return (
+        f"{title}\n"
+        f"  Status: {status}\n"
+        f"  Date: {_format_date(event.get('start_date'), event.get('end_date'))}\n"
+        f"  Time: {time_str}\n"
+        f"  Fee: {fee}\n"
+        f"  Venue: {venue}\n"
+        f"  Link: {link}"
+    )

@@ -4,7 +4,7 @@ from telegram.ext import ContextTypes
 from config import ITEMS_PER_PAGE, API_URL
 from api_client import fetch_events
 from keyboards import browse_filters_keyboard, main_menu_markup
-from helpers import is_admin
+from helpers import is_admin, format_event_compact
 
 
 def _build_browse_params(filters: dict) -> dict:
@@ -25,6 +25,7 @@ async def show_browse(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
     params = _build_browse_params(filters)
     params["page"] = str(page)
     params["per_page"] = str(ITEMS_PER_PAGE)
+    params["sort"] = "date_asc"
 
     q = update.callback_query
     await q.answer()
@@ -48,12 +49,9 @@ async def show_browse(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
         return
 
     lines = [f"<b>Events</b> — Page {page}/{total_pages} ({total}) total\n"]
-    for ev in events:
-        title = ev.get("title", "?")
-        status = ev.get("status", "?")
-        icon = {"active": "\U0001f7e2", "expired": "\U0001f534", "upcoming": "\U0001f7e1"}
-        s = icon.get(status, "\U0001f7e1")
-        lines.append(f"{s} {html.escape(title)}")
+    start = (page - 1) * ITEMS_PER_PAGE + 1
+    for i, ev in enumerate(events, start):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
 
     text = "\n".join(lines)
 
@@ -124,8 +122,10 @@ async def handle_browse_filter(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_list_active(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    parts = q.data.split("|")
+    page = int(parts[1]) if len(parts) > 1 else 1
 
-    data = await fetch_events({"per_page": 50, "status": "active"})
+    data = await fetch_events({"per_page": ITEMS_PER_PAGE, "page": page, "status": "active", "sort": "date_asc"})
     if data is None:
         if q.message and q.message.text:
             await q.edit_message_text("❌ Error contacting API.", reply_markup=main_menu_markup(update.effective_user.id))
@@ -134,6 +134,8 @@ async def handle_list_active(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     events = data.get("events", [])
+    total = data.get("total", 0)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
 
     if not events:
         if q.message and q.message.text:
@@ -142,13 +144,19 @@ async def handle_list_active(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await q.message.reply_text("\U0001f645 No active events right now.", reply_markup=main_menu_markup(update.effective_user.id))
         return
 
-    lines = [f"\U0001f7e2 <b>Active Events</b> — {len(events)} total\n"]
-    for ev in events:
-        title = ev.get("title", "?")
-        lines.append(f"\U0001f7e2 {html.escape(title)}")
+    lines = [f"<b>Active Events</b> — Page {page}/{total_pages} ({total}) total\n"]
+    start = (page - 1) * ITEMS_PER_PAGE + 1
+    for i, ev in enumerate(events, start):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
     text = "\n".join(lines)
 
-    kb_buttons = []
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("◀️ Prev", callback_data=f"list_active|{page-1}"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("Next ▶️", callback_data=f"list_active|{page+1}"))
+
+    kb_buttons = [nav] if nav else []
     for ev in events[:5]:
         kb_buttons.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{ev['_id']}")])
     kb_buttons.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])

@@ -37,7 +37,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("myevents|"):
         from .my_events import handle_my_events
         return await handle_my_events(update, context)
-    elif data == "list_active":
+    elif data.startswith("list_active"):
         from .browse import handle_list_active
         return await handle_list_active(update, context)
     elif data.startswith("admin|"):
@@ -59,6 +59,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif action == "save":
             from .create import handle_create_save
             return await handle_create_save(update, context)
+    elif data.startswith("searchpage|"):
+        from .commands import handle_search_page
+        return await handle_search_page(update, context)
     elif data == "search":
         await q.answer()
         await q.edit_message_text("What are you looking for? Type a keyword (e.g. 'Hackathon'):")
@@ -72,6 +75,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         from .menu import send_main_menu
         return await send_main_menu(update, context, text=intro)
+    elif data.startswith("batch|"):
+        await q.answer()
+        from .batch import handle_batch_callback
+        return await handle_batch_callback(update, context)
     elif data == "close":
         from .menu import handle_close
         return await handle_close(update, context)

@@ -30,7 +30,11 @@ async def handle_view_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons.append([InlineKeyboardButton("✏️ Edit", callback_data=f"edit|start|{event_id}"),
                         InlineKeyboardButton("\U0001f5d1 Delete", callback_data=f"delete|confirm|{event_id}")])
 
-    buttons.append([InlineKeyboardButton("\U0001f519 Back to List", callback_data="menu")])
+    has_batch = bool(context.user_data.get("batch_summary_msg_id"))
+    if has_batch:
+        buttons.append([InlineKeyboardButton("\U0001f519 Back to Batch", callback_data="batch|back_to_summary")])
+    else:
+        buttons.append([InlineKeyboardButton("\U0001f519 Back to List", callback_data="menu")])
 
     await q.edit_message_text(
         text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="HTML", disable_web_page_preview=True,

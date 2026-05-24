@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 from config import ITEMS_PER_PAGE
 from api_client import fetch_events
 from keyboards import main_menu_markup
+from helpers import format_event_compact
 
 
 async def handle_my_events(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -15,7 +16,7 @@ async def handle_my_events(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(parts) > 1:
         page = int(parts[1])
 
-    data = await fetch_events({"creator_id": uid, "page": page, "per_page": ITEMS_PER_PAGE})
+    data = await fetch_events({"creator_id": uid, "page": page, "per_page": ITEMS_PER_PAGE, "sort": "date_asc"})
     if data is None:
         await q.edit_message_text("❌ Error contacting API.", reply_markup=main_menu_markup(uid))
         return
@@ -32,9 +33,9 @@ async def handle_my_events(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     lines = [f"<b>My Events</b> — Page {page}/{total_pages} ({total}) total\n"]
-    for ev in events:
-        title = ev.get("title", "?")
-        lines.append(f"• {html.escape(title)}")
+    start = (page - 1) * ITEMS_PER_PAGE + 1
+    for i, ev in enumerate(events, start):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
     text = "\n".join(lines)
 
     nav = []
@@ -43,14 +44,10 @@ async def handle_my_events(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if page < total_pages:
         nav.append(InlineKeyboardButton(f"Next ▶️", callback_data=f"myevents|{page+1}"))
 
-    actions = []
-    for ev in events[:3]:
-        eid = ev["_id"]
-        actions.append(InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:20]}", callback_data=f"view|{eid}"))
-
     kb = [nav] if nav else []
-    if actions:
-        kb.append(actions)
+    for ev in events[:5]:
+        eid = ev["_id"]
+        kb.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{eid}")])
     kb.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
     kb.append([InlineKeyboardButton("❌ Close", callback_data="close")])
 

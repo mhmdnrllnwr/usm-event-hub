@@ -3,7 +3,7 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ITEMS_PER_PAGE, IDLE, SEARCHING
 from api_client import fetch_events
-from helpers import is_admin
+from helpers import is_admin, format_event_compact
 from keyboards import main_menu_markup, admin_markup
 
 
@@ -21,7 +21,7 @@ async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["browse_filters"] = {}
     context.user_data["browse_page"] = 1
 
-    data = await fetch_events({"per_page": ITEMS_PER_PAGE})
+    data = await fetch_events({"per_page": ITEMS_PER_PAGE, "sort": "date_asc"})
     if data is None:
         await update.message.reply_text("❌ Error contacting API.", reply_markup=main_menu_markup(update.effective_user.id))
         return
@@ -35,12 +35,8 @@ async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     lines = [f"<b>Events</b> — Page 1/{total_pages} ({total}) total\n"]
-    for ev in events:
-        title = ev.get("title", "?")
-        status = ev.get("status", "?")
-        icon = {"active": "\U0001f7e2", "expired": "\U0001f534", "upcoming": "\U0001f7e1"}
-        s = icon.get(status, "\U0001f7e1")
-        lines.append(f"{s} {html.escape(title)}")
+    for i, ev in enumerate(events, 1):
+        lines.append(f"{i}. {html.escape(ev.get('title', '?'))}")
 
     text = "\n".join(lines)
 
@@ -48,12 +44,10 @@ async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if total_pages > 1:
         nav.append(InlineKeyboardButton(f"Next ▶️", callback_data="browse|2"))
 
-    actions = []
-    for ev in events[:3]:
+    kb = [nav] if nav else []
+    for ev in events[:5]:
         eid = ev["_id"]
-        actions.append(InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:20]}", callback_data=f"view|{eid}"))
-
-    kb = [nav, actions] if actions else [nav]
+        kb.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{eid}")])
     kb.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
     kb.append([InlineKeyboardButton("❌ Close", callback_data="close")])
 
@@ -73,7 +67,7 @@ async def handle_search_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(f"Searching for '{keyword}'...")
 
-    data = await fetch_events({"search": keyword, "per_page": ITEMS_PER_PAGE})
+    data = await fetch_events({"search": keyword, "per_page": ITEMS_PER_PAGE, "sort": "date_asc"})
     if data is None:
         await update.message.reply_text("❌ Error contacting API.", reply_markup=main_menu_markup(update.effective_user.id))
         return ConversationHandler.END
@@ -87,37 +81,80 @@ async def handle_search_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return ConversationHandler.END
 
-    lines = [f"<b>Search results</b> — {total} found\n"]
-    for ev in events:
-        title = ev.get("title", "?")
-        status = ev.get("status", "?")
-        icon = {"active": "\U0001f7e2", "expired": "\U0001f534", "upcoming": "\U0001f7e1"}
-        s = icon.get(status, "\U0001f7e1")
-        lines.append(f"{s} {html.escape(title)}")
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    context.user_data["search_keyword"] = keyword
+
+    lines = [f"<b>Search results</b> — Page 1/{total_pages} ({total}) found\n"]
+    for i, ev in enumerate(events, 1):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
 
     text = "\n".join(lines)
 
-    actions = []
-    for ev in events[:3]:
-        eid = ev["_id"]
-        actions.append(InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:20]}", callback_data=f"view|{eid}"))
+    nav = []
+    if total_pages > 1:
+        nav.append(InlineKeyboardButton("Next ▶️", callback_data="searchpage|2"))
 
-    kb = [actions] if actions else []
+    kb = [nav] if nav else []
+    for ev in events[:5]:
+        eid = ev["_id"]
+        kb.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{eid}")])
     kb.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="HTML", disable_web_page_preview=True)
     return ConversationHandler.END
 
 
+async def handle_search_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    parts = q.data.split("|")
+    page = int(parts[1])
+    keyword = context.user_data.get("search_keyword", "")
+
+    data = await fetch_events({"search": keyword, "per_page": ITEMS_PER_PAGE, "page": page, "sort": "date_asc"})
+    if data is None:
+        await q.edit_message_text("❌ Error contacting API.", reply_markup=main_menu_markup(update.effective_user.id))
+        return
+
+    events = data.get("events", [])
+    total = data.get("total", 0)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+
+    if not events:
+        await q.edit_message_text(f"No more results.", reply_markup=main_menu_markup(update.effective_user.id))
+        return
+
+    lines = [f"<b>Search results</b> — Page {page}/{total_pages} ({total}) found\n"]
+    start = (page - 1) * ITEMS_PER_PAGE + 1
+    for i, ev in enumerate(events, start):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
+    text = "\n".join(lines)
+
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("◀️ Prev", callback_data=f"searchpage|{page-1}"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("Next ▶️", callback_data=f"searchpage|{page+1}"))
+
+    kb = [nav] if nav else []
+    for ev in events[:5]:
+        eid = ev["_id"]
+        kb.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{eid}")])
+    kb.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
+
+    await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="HTML", disable_web_page_preview=True)
+
+
 async def myevents_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    data = await fetch_events({"creator_id": uid, "per_page": ITEMS_PER_PAGE})
+    data = await fetch_events({"creator_id": uid, "per_page": ITEMS_PER_PAGE, "page": 1, "sort": "date_asc"})
     if data is None:
         await update.message.reply_text("❌ Error contacting API.", reply_markup=main_menu_markup(update.effective_user.id))
         return
 
     events = data.get("events", [])
     total = data.get("total", 0)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
 
     if not events:
         await update.message.reply_text(
@@ -126,18 +163,20 @@ async def myevents_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    lines = [f"<b>My Events</b> — {total} total\n"]
-    for ev in events:
-        title = ev.get("title", "?")
-        lines.append(f"• {html.escape(title)}")
+    lines = [f"<b>My Events</b> — Page 1/{total_pages} ({total}) total\n"]
+    for i, ev in enumerate(events, 1):
+        lines.append(f"{i}. {format_event_compact(ev)}\n")
+
     text = "\n".join(lines)
 
-    actions = []
-    for ev in events[:3]:
-        eid = ev["_id"]
-        actions.append(InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:20]}", callback_data=f"view|{eid}"))
+    nav = []
+    if total_pages > 1:
+        nav.append(InlineKeyboardButton("Next ▶️", callback_data=f"myevents|2"))
 
-    kb = [actions] if actions else []
+    kb = [nav] if nav else []
+    for ev in events[:5]:
+        eid = ev["_id"]
+        kb.append([InlineKeyboardButton(f"\U0001f50d {ev.get('title', '?')[:30]}", callback_data=f"view|{eid}")])
     kb.append([InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")])
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="HTML")
@@ -168,12 +207,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/browse - Browse all events\n"
         "/search - Search events\n"
         "/myevents - Your events\n"
-        "/help - This message"
+        "/help - This message\n"
+        "/batch - Toggle batch mode (collect events silently)"
     )
     if is_admin(update.effective_user.id):
         text += "\n/admin - Admin panel"
 
     await update.message.reply_text(text, parse_mode="HTML")
+
+
 
 
 async def handle_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):

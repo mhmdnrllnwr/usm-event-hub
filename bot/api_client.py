@@ -57,9 +57,11 @@ async def delete_event(event_id: str) -> bool:
             return False
 
 
-async def process_forwarded(payload: dict) -> dict | None:
+async def process_forwarded(payload: dict, skip_ai: bool = False) -> dict | None:
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
+            if skip_ai:
+                payload = {**payload, "skip_ai": True}
             resp = await client.post(PROCESS_URL, json=payload)
             if resp.status_code == 200:
                 return resp.json()

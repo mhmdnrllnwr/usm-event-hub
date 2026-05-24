@@ -21,6 +21,12 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     uid = update.effective_user.id
+
+    # Batch mode: short ack, accumulate results, no full card
+    if context.user_data.get("batch_mode"):
+        await _handle_batch_push(update, context, raw_text, file_id, uid)
+        return
+
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     payload = {"text": raw_text, "image_url": file_id, "creator_id": uid}
@@ -79,3 +85,48 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_photo(photo=file_id, caption=reply, parse_mode="HTML", reply_markup=view_kb)
     else:
         await update.message.reply_text(reply, parse_mode="HTML", disable_web_page_preview=True, reply_markup=view_kb)
+
+
+async def _handle_batch_push(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    raw_text: str,
+    file_id: str | None,
+    uid: int,
+):
+    payload = {"text": raw_text, "image_url": file_id, "creator_id": uid}
+    result = await process_forwarded(payload, skip_ai=True)
+
+    if result is None:
+        context.user_data.setdefault("batch_results", []).append({
+            "status": "failed",
+        })
+        await update.message.reply_text("Connection error")
+        return
+
+    status_code = result.get("status_code")
+    if status_code == 409:
+        context.user_data.setdefault("batch_results", []).append({
+            **result,
+            "status": "duplicate",
+        })
+        title = (result.get("extracted_data") or {}).get("title", "?")
+        await update.message.reply_text(f"⚠️ {title} — duplicate")
+        return
+
+    if status_code is not None and status_code != 200:
+        context.user_data.setdefault("batch_results", []).append({
+            "status": "failed",
+        })
+        await update.message.reply_text("Failed")
+        return
+
+    context.user_data.setdefault("batch_results", []).append({
+        **result,
+        "status": "saved",
+    })
+
+    ext = result.get("extracted_data", {}) or {}
+    title = ext.get("title", "?")
+    idx = len(context.user_data["batch_results"])
+    await update.message.reply_text(f"✅ <b>#{idx} {title}</b> — saved", parse_mode="HTML")

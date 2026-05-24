@@ -1,5 +1,5 @@
 import html
-from telegram import Update, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from config import IDLE, EDIT_FIELD
 from api_client import fetch_event, update_event
@@ -97,8 +97,13 @@ async def handle_edit_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
     event_id = context.user_data.get("edit_event_id")
     updates = context.user_data.get("edit_updates", {})
 
+    has_batch = bool(context.user_data.get("batch_summary_msg_id"))
+
     if not updates:
-        await q.edit_message_text("No changes made.", reply_markup=main_menu_markup(update.effective_user.id))
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Back to Batch Summary", callback_data="batch|back_to_summary")],
+        ]) if has_batch else main_menu_markup(update.effective_user.id)
+        await q.edit_message_text("No changes made.", reply_markup=markup)
         context.user_data.pop("edit_event_id", None)
         context.user_data.pop("edit_updates", None)
         context.user_data.pop("edit_field", None)
@@ -106,18 +111,22 @@ async def handle_edit_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     success, err = await update_event(event_id, updates)
     if success:
-        from telegram import InlineKeyboardButton
+        buttons = [[InlineKeyboardButton("View Event", callback_data=f"view|{event_id}")]]
+        if has_batch:
+            buttons.append([InlineKeyboardButton("Back to Batch Summary", callback_data="batch|back_to_summary")])
+        else:
+            buttons.append([InlineKeyboardButton("Main Menu", callback_data="menu")])
         await q.edit_message_text(
             "✅ Event updated successfully!",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("\U0001f50d View Event", callback_data=f"view|{event_id}")],
-                [InlineKeyboardButton("\U0001f519 Main Menu", callback_data="menu")],
-            ]),
+            reply_markup=InlineKeyboardMarkup(buttons),
         )
     else:
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Back to Batch Summary", callback_data="batch|back_to_summary")],
+        ]) if has_batch else main_menu_markup(update.effective_user.id)
         await q.edit_message_text(
             f"❌ Update failed: {err}",
-            reply_markup=main_menu_markup(update.effective_user.id),
+            reply_markup=markup,
         )
 
     context.user_data.pop("edit_event_id", None)

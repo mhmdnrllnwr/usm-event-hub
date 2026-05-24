@@ -11,6 +11,8 @@ from handlers import (
     myevents_command,
     admin_command,
     help_command,
+    batch_command,
+    batch_done_command,
     handle_cancel,
     handle_search_input,
     handle_edit_callback,
@@ -92,6 +94,8 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("myevents", myevents_command))
     application.add_handler(CommandHandler("admin", admin_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("batch", batch_command))
+    application.add_handler(CommandHandler("done", batch_done_command))
     application.add_handler(search_conv)
     application.add_handler(edit_conv)
     application.add_handler(create_conv)

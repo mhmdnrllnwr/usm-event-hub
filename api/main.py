@@ -60,6 +60,7 @@ async def fetch_events(
     has_mycsd: Optional[bool] = Query(None),
     creator_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
+    sort: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=50),
 ):
@@ -74,6 +75,7 @@ async def fetch_events(
         mycsd_only=mycsd_only,
         creator_id=creator_id,
         status=status,
+        sort=sort,
         page=page,
         per_page=per_page,
     )

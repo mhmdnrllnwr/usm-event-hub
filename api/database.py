@@ -35,6 +35,7 @@ async def get_events(
     mycsd_only: bool = False,
     creator_id: int = None,
     status: str = None,
+    sort: str = None,
     page: int = 1,
     per_page: int = 10,
 ):
@@ -63,6 +64,26 @@ async def get_events(
         document["_id"] = str(document["_id"])
         document["status"] = compute_status(document)
         all_events.append(document)
+
+    # Date-aware sort: parse start_date strings into datetimes
+    if sort == "date_asc":
+        for e in all_events:
+            d = e.get("start_date")
+            if d and d != "TBD":
+                parsed = dateparser.parse(d)
+                e["_parsed_date"] = parsed if parsed else datetime.max
+            else:
+                e["_parsed_date"] = datetime.max
+        all_events.sort(key=lambda e: e["_parsed_date"])
+    elif sort == "date_desc":
+        for e in all_events:
+            d = e.get("start_date")
+            if d and d != "TBD":
+                parsed = dateparser.parse(d)
+                e["_parsed_date"] = parsed if parsed else datetime.min
+            else:
+                e["_parsed_date"] = datetime.min
+        all_events.sort(key=lambda e: e["_parsed_date"], reverse=True)
 
     # Post-filter by status (computed field, not in DB)
     if status:
@@ -107,7 +128,7 @@ async def update_event(event_id: str, update_data: dict) -> bool:
             {"_id": ObjectId(event_id)},
             {"$set": update_data}
         )
-        return result.modified_count > 0
+        return result.matched_count > 0
     except Exception:
         return False
 
