@@ -103,4 +103,11 @@ if __name__ == "__main__":
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO) & ~filters.COMMAND, handle_push_message))
 
     logger.info("Bot is running...")
+
+    async def _on_shutdown(app):
+        from api_client import close_client as _close
+        await _close()
+        logger.info("API client closed")
+
+    application.post_shutdown = _on_shutdown
     application.run_polling()

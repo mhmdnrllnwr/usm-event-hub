@@ -30,7 +30,7 @@ async def handle_push_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     payload = {"text": raw_text, "image_url": file_id, "creator_id": uid}
-    result = await process_forwarded(payload)
+    result = await process_forwarded(payload, skip_ai=True)
 
     if result is None:
         logger.error("Error handling push: connection error")
